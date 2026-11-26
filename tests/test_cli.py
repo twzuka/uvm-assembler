@@ -96,3 +96,17 @@ class CliTests(unittest.TestCase):
                     ])
                 self.assertEqual(status, 1)
                 self.assertEqual(dump.read_text("utf-8"), "existing")
+
+    def test_preserve_binary_when_dump_path_matches(self):
+        """A dump cannot overwrite its binary input."""
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / "program.bin"
+            binary.write_bytes(bytes.fromhex("05 00 00 00 FA 00 00 00"))
+            original = binary.read_bytes()
+            with redirect_stderr(io.StringIO()):
+                status = main([
+                    "run", str(binary), str(binary),
+                    "--start", "1000", "--end", "1000",
+                ])
+            self.assertEqual(status, 1)
+            self.assertEqual(binary.read_bytes(), original)
