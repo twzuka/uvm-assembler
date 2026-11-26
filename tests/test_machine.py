@@ -79,7 +79,7 @@ class MachineTests(unittest.TestCase):
         with self.assertRaisesRegex(UvmError, "не являющееся байтом"):
             run_source("LOAD_CONST 256, 8\nLOAD_CONST 0, 1000")
 
-    def test_eq_not_implemented_at_stage_three(self):
-        """The stage 3 VM explicitly rejects the stage 4 operation."""
-        with self.assertRaisesRegex(UvmError, "ещё не поддерживается"):
-            run_source("EQ 0, 1000, 1100, 1200")
+    def test_eq_uses_zero_initialized_memory(self):
+        """Equality is true for two initially zero-valued data cells."""
+        machine = run_source("LOAD_CONST 1100, 1001\nEQ 0, 1000, 1001, 1200")
+        self.assertEqual(machine.memory.read(1200), 1)
