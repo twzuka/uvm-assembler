@@ -2,6 +2,7 @@
 
 from contextlib import redirect_stderr, redirect_stdout
 import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -59,3 +60,39 @@ class CliTests(unittest.TestCase):
                 status = main(["assemble", missing, missing + ".bin"])
             self.assertEqual(status, 1)
             self.assertIn("Ошибка:", stream.getvalue())
+
+    def test_interpreter_json_dump(self):
+        """Run an assembled program and read its actual JSON output."""
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.asm"
+            binary = Path(directory) / "program.bin"
+            dump = Path(directory) / "dump.json"
+            source.write_text("LOAD_CONST 116, 1000", encoding="utf-8")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(main([
+                    "assemble", str(source), str(binary),
+                ]), 0)
+                self.assertEqual(main([
+                    "run", str(binary), str(dump),
+                    "--start", "999", "--end", "1001",
+                ]), 0)
+            self.assertEqual(json.loads(dump.read_text("utf-8")), {
+                "start": 999, "end": 1001,
+                "memory": {"999": 0, "1000": 116, "1001": 0},
+            })
+
+    def test_interpreter_errors_preserve_dump(self):
+        """Failed execution or a reversed range does not replace a dump."""
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / "bad.bin"
+            dump = Path(directory) / "dump.json"
+            binary.write_bytes(b"\x00")
+            dump.write_text("existing", encoding="utf-8")
+            for start, end in (("0", "10"), ("10", "0")):
+                with redirect_stderr(io.StringIO()):
+                    status = main([
+                        "run", str(binary), str(dump),
+                        "--start", start, "--end", end,
+                    ])
+                self.assertEqual(status, 1)
+                self.assertEqual(dump.read_text("utf-8"), "existing")
